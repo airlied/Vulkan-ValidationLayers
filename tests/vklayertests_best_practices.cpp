@@ -717,6 +717,90 @@ TEST_F(VkBestPracticesLayerTest, TripleBufferingTest) {
     DestroySwapchain();
 }
 
+TEST_F(VkBestPracticesLayerTest, SwapchainCreationTest) {
+	TEST_DESCRIPTION("Test for usage of triple buffering");
+
+	if (!AddSurfaceInstanceExtension()) {
+		printf("%s surface extensions not supported, skipping test\n", kSkipPrefix);
+		return;
+	}
+	ASSERT_NO_FATAL_FAILURE(InitBestPracticesFramework());
+	if (!AddSwapchainDeviceExtension()) {
+		printf("%s swapchain extensions not supported, skipping CmdCopySwapchainImage test\n", kSkipPrefix);
+		return;
+	}
+	ASSERT_NO_FATAL_FAILURE(InitState());
+
+	m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT,
+		"UNASSIGNED-BestPractices-vkCreateSwapchainKHR-surface-not-retrieved");
+
+	if (!InitSurface()) {
+		printf("%s Cannot create surface, skipping test\n", kSkipPrefix);
+		return;
+	}
+
+
+
+
+
+	// This chunck of code is a direct copy of  contents of InitSwapchainInfo()
+	const VkPhysicalDevice physicalDevice = gpu();
+
+	// Remove call to GetPhysicalDeviceSurfaceCapabilitiesKHR() so function remains `UNCALLED`
+	// vk::GetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, m_surface, &m_surface_capabilities);
+
+	uint32_t format_count;
+	vk::GetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, m_surface, &format_count, nullptr);
+	if (format_count != 0) {
+		m_surface_formats.resize(format_count);
+		vk::GetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, m_surface, &format_count, m_surface_formats.data());
+	}
+
+	uint32_t present_mode_count;
+	vk::GetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, m_surface, &present_mode_count, nullptr);
+	if (present_mode_count != 0) {
+		m_surface_present_modes.resize(present_mode_count);
+		vk::GetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, m_surface, &present_mode_count, m_surface_present_modes.data());
+	}
+
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
+	m_surface_composite_alpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+#else
+	m_surface_composite_alpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+#endif
+
+
+
+
+
+	VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	VkSurfaceTransformFlagBitsKHR preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+
+	VkSwapchainCreateInfoKHR swapchain_create_info = {};
+	swapchain_create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	swapchain_create_info.pNext = 0;
+	swapchain_create_info.surface = m_surface;
+	swapchain_create_info.minImageCount = 3;
+	swapchain_create_info.imageFormat = m_surface_formats[0].format;
+	swapchain_create_info.imageColorSpace = m_surface_formats[0].colorSpace;
+	// Remove use of `m_surface_capabilities` since it was never set above
+	// swapchain_create_info.imageExtent = { m_surface_capabilities.minImageExtent.width, m_surface_capabilities.minImageExtent.height };
+	swapchain_create_info.imageArrayLayers = 1;
+	swapchain_create_info.imageUsage = imageUsage;
+	swapchain_create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	swapchain_create_info.preTransform = preTransform;
+	swapchain_create_info.compositeAlpha = m_surface_composite_alpha;
+	swapchain_create_info.presentMode = m_surface_present_modes[0];
+	swapchain_create_info.clipped = VK_FALSE;
+	swapchain_create_info.oldSwapchain = 0;
+
+	VkResult err = vk::CreateSwapchainKHR(device(), &swapchain_create_info, nullptr, &m_swapchain);
+	m_errorMonitor->VerifyFound();
+
+	ASSERT_VK_SUCCESS(err);
+	DestroySwapchain();
+}
+
 TEST_F(VkBestPracticesLayerTest, ExpectedQueryDetails) {
     TEST_DESCRIPTION("Check that GetPhysicalDeviceQueueFamilyProperties is working as expected");
 
